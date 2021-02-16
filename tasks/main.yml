@@ -1,0 +1,77 @@
+---
+# tasks file for master-node
+ - name: Installing docker
+   package:
+     name: docker
+     state: present
+
+ - name: starting docker services
+   service:
+     name: docker
+     state: started
+     enabled: yes
+
+ - name: configuring yum for kubeadm software
+   yum_repository:
+     baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+     name: kubernetes
+     gpgcheck: yes
+     enabled: yes
+     repo_gpgcheck: yes
+     gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+     description: kubeadm software
+     exclude:
+     - kubelet
+     - kubeadm 
+     - kubectl
+
+ - name: Installing kubeadm
+   yum:
+     name: kubeadm
+     disable_excludes: kubernetes
+
+ - name: Starting kubelet service
+   service:
+     name: kubelet
+     state: started
+     enabled: yes
+
+ - name: pulling all the images 
+   shell: "kubeadm config images pull"
+
+ - name: copying daemon.json file..  
+   copy:
+     src: daemon.json
+     dest: /etc/docker/daemon.json
+   register: x
+
+ - name: restarting docker
+   service:
+     name: docker
+     state: restarted
+   when: x.changed == true
+
+ - name: installing iproute-tc
+   package:
+     name: iproute-tc
+     state: present
+
+ - name: shell commands for brige-nf-call-iptables
+   shell: echo "1" > /proc/sys/net/bridge/bridge-nf-call-iptables
+
+ - name: starting kubeadm 
+   shell:  "kubeadm init --pod-network-cidr={{ cidr }} --ignore-preflight-errors=NumCPU --ignore-preflight-errors=Mem"
+
+ - name: configuring for kubectl
+   shell: "mkdir -p $HOME/.kube"
+
+ - name: configuringg
+   shell: "sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+
+ - name: cofiguring
+   shell: "sudo chown $(id -u):$(id -g) $HOME/.kube/config"
+
+ - name: apply flannel.yml
+   shell: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+
+
